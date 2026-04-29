@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Insighta Labs — Logging in...</title>
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body class="auth-page">
+  <div class="auth-card">
+    <div class="spinner"></div>
+    <p style="margin-top:16px;color:#8b949e">Completing login...</p>
+  </div>
+
+  <script>
+    /**
+     * This page is where the backend redirects after a successful
+     * GitHub OAuth login:
+     *   backend → /auth/success#token=eyJ...
+     *
+     * The token is in the URL FRAGMENT (#) — it never hits any server
+     * logs because browsers don't send fragments to servers.
+     *
+     * We read it here, store it in sessionStorage, then redirect to
+     * the main app. sessionStorage is cleared when the tab closes,
+     * which is appropriate for a short-lived access token.
+     */
+    (function () {
+      const fragment = window.location.hash.slice(1); // remove the #
+      const params   = new URLSearchParams(fragment);
+      const token    = params.get('token');
+
+      if (!token) {
+        window.location.href = '/login.html?error=no_token';
+        return;
+      }
+
+      // Store in sessionStorage — never localStorage (persists too long)
+      sessionStorage.setItem('accessToken', token);
+
+      // Clean the token from the URL before redirecting
+      history.replaceState(null, '', window.location.pathname);
+
+      window.location.href = '/';
+    })();
+  </script>
+</body>
+</html>
