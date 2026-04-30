@@ -1,42 +1,47 @@
 /**
  * public/js/api.js
  * -----------------
- * Thin wrappers around backend API endpoints.
- * All calls go through authFetch so token refresh is automatic.
+ * Backend API wrappers — all routes match TRD:
+ *   GET /api/profiles          (with X-API-Version: 1 header)
+ *   GET /api/profiles/search
+ *   GET /api/profiles/export
+ *   GET /api/users/me
  */
+
+const API_HEADERS = { 'X-API-Version': '1' };
 
 const ProfileAPI = {
 
-  /**
-   * Fetch profiles with filters, sort, pagination.
-   */
+  // GET /api/profiles
   getProfiles: async (params = {}) => {
     const qs  = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined))
     );
-    const res  = await authFetch(`${API}/api/v1/profiles?${qs}`);
+    const res = await authFetch(`${API}/api/profiles?${qs}`, {
+      headers: API_HEADERS,
+    });
     if (!res) return null;
     return res.json();
   },
 
-  /**
-   * Natural language search.
-   */
+  // GET /api/profiles/search
   searchProfiles: async (q, params = {}) => {
     const qs  = new URLSearchParams({ q, ...params });
-    const res  = await authFetch(`${API}/api/v1/profiles/search?${qs}`);
+    const res = await authFetch(`${API}/api/profiles/search?${qs}`, {
+      headers: API_HEADERS,
+    });
     if (!res) return null;
     return res.json();
   },
 
-  /**
-   * Export profiles as CSV — returns a Blob.
-   */
+  // GET /api/profiles/export?format=csv
   exportProfiles: async (params = {}) => {
-    const qs  = new URLSearchParams(
+    const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined))
     );
-    const res  = await authFetch(`${API}/api/v1/export/profiles?${qs}`);
+    const res = await authFetch(`${API}/api/profiles/export?format=csv&${qs}`, {
+      headers: API_HEADERS,
+    });
     if (!res) return null;
 
     const count  = res.headers.get('X-Export-Count');
@@ -46,11 +51,11 @@ const ProfileAPI = {
     return { blob, count, capped };
   },
 
-  /**
-   * Get the current logged-in user's profile.
-   */
+  // GET /api/users/me
   getMe: async () => {
-    const res = await authFetch(`${API}/api/v1/auth/me`);
+    const res = await authFetch(`${API}/api/users/me`, {
+      headers: API_HEADERS,
+    });
     if (!res) return null;
     return res.json();
   },

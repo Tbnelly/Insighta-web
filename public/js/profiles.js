@@ -1,26 +1,17 @@
 /**
  * public/js/profiles.js
  * ----------------------
- * All dashboard logic:
- *  - Load and display profiles on page load
- *  - Apply sidebar filters
- *  - Natural language search
- *  - Pagination (prev/next)
- *  - CSV export with browser download
- *  - Show current user in navbar
+ * Dashboard logic — updated to use total_pages (TRD format)
+ * instead of totalPages.
  */
 
-// ── State ─────────────────────────────────────────────────────────────────────
-
 let state = {
-  page:      1,
-  limit:     10,
-  filters:   {},
-  searchQ:   '',
-  isSearch:  false,
+  page:     1,
+  limit:    10,
+  filters:  {},
+  searchQ:  '',
+  isSearch: false,
 };
-
-// ── DOM refs ──────────────────────────────────────────────────────────────────
 
 const els = {
   loading:     document.getElementById('loadingState'),
@@ -44,7 +35,6 @@ const els = {
   clearFilter: document.getElementById('clearFiltersBtn'),
   exportBtn:   document.getElementById('exportBtn'),
   exportNote:  document.getElementById('exportNote'),
-  // Filter inputs
   gender:      document.getElementById('filterGender'),
   ageGroup:    document.getElementById('filterAgeGroup'),
   country:     document.getElementById('filterCountry'),
@@ -53,8 +43,6 @@ const els = {
   sortBy:      document.getElementById('filterSortBy'),
   order:       document.getElementById('filterOrder'),
 };
-
-// ── UI helpers ────────────────────────────────────────────────────────────────
 
 const showLoading = () => {
   els.loading.style.display    = 'flex';
@@ -78,14 +66,21 @@ const showTable = () => {
   els.pagination.style.display = 'flex';
 };
 
-const renderStats = (meta) => {
-  els.statTotal.textContent = meta.total.toLocaleString();
-  els.statPage.textContent  = meta.page;
-  els.statPages.textContent = meta.totalPages;
-  els.pageInfo.textContent  = `Page ${meta.page} of ${meta.totalPages}`;
-  els.prevBtn.disabled      = meta.page <= 1;
-  els.nextBtn.disabled      = meta.page >= meta.totalPages;
+// TRD response uses total_pages not totalPages
+const renderStats = (result) => {
+  const totalPages = result.total_pages || result.totalPages || 1;
+  els.statTotal.textContent = result.total.toLocaleString();
+  els.statPage.textContent  = result.page;
+  els.statPages.textContent = totalPages;
+  els.pageInfo.textContent  = `Page ${result.page} of ${totalPages}`;
+  els.prevBtn.disabled      = result.page <= 1;
+  els.nextBtn.disabled      = result.page >= totalPages;
 };
+
+const escapeHtml = (str) =>
+  String(str).replace(/[&<>"']/g, (c) =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])
+  );
 
 const renderRow = (p) => {
   const tr = document.createElement('tr');
@@ -100,13 +95,6 @@ const renderRow = (p) => {
   `;
   return tr;
 };
-
-const escapeHtml = (str) =>
-  String(str).replace(/[&<>"']/g, (c) =>
-    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])
-  );
-
-// ── Load profiles ─────────────────────────────────────────────────────────────
 
 const loadProfiles = async () => {
   showLoading();
@@ -131,7 +119,6 @@ const loadProfiles = async () => {
       return;
     }
 
-    // Render rows
     els.tbody.innerHTML = '';
     if (result.data.length === 0) {
       els.tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:40px">No profiles found.</td></tr>`;
@@ -139,7 +126,8 @@ const loadProfiles = async () => {
       result.data.forEach((p) => els.tbody.appendChild(renderRow(p)));
     }
 
-    renderStats(result.meta);
+    // Pass the full result object — renderStats reads total_pages directly
+    renderStats(result);
     showTable();
 
   } catch (err) {
@@ -147,13 +135,10 @@ const loadProfiles = async () => {
   }
 };
 
-// ── Events ────────────────────────────────────────────────────────────────────
-
 // Pagination
 els.prevBtn.addEventListener('click', () => {
   if (state.page > 1) { state.page--; loadProfiles(); }
 });
-
 els.nextBtn.addEventListener('click', () => {
   state.page++;
   loadProfiles();
@@ -165,26 +150,26 @@ els.applyFilter.addEventListener('click', () => {
   state.searchQ  = '';
   state.page     = 1;
   state.filters  = {
-    gender:      els.gender.value,
-    age_group:   els.ageGroup.value,
-    country_id:  els.country.value.toUpperCase(),
-    min_age:     els.minAge.value,
-    max_age:     els.maxAge.value,
-    sort_by:     els.sortBy.value,
-    order:       els.order.value,
+    gender:     els.gender.value,
+    age_group:  els.ageGroup.value,
+    country_id: els.country.value.toUpperCase(),
+    min_age:    els.minAge.value,
+    max_age:    els.maxAge.value,
+    sort_by:    els.sortBy.value,
+    order:      els.order.value,
   };
   loadProfiles();
 });
 
 // Clear filters
 els.clearFilter.addEventListener('click', () => {
-  els.gender.value  = '';
+  els.gender.value   = '';
   els.ageGroup.value = '';
-  els.country.value = '';
-  els.minAge.value  = '';
-  els.maxAge.value  = '';
-  els.sortBy.value  = '';
-  els.order.value   = 'asc';
+  els.country.value  = '';
+  els.minAge.value   = '';
+  els.maxAge.value   = '';
+  els.sortBy.value   = '';
+  els.order.value    = 'asc';
   state.filters  = {};
   state.page     = 1;
   state.isSearch = false;
@@ -213,7 +198,7 @@ els.clearSearch.addEventListener('click', () => {
   loadProfiles();
 });
 
-// Retry button
+// Retry
 document.getElementById('retryBtn').addEventListener('click', loadProfiles);
 
 // Export CSV
@@ -225,24 +210,20 @@ els.exportBtn.addEventListener('click', async () => {
   try {
     const params = state.isSearch ? {} : state.filters;
     const result = await ProfileAPI.exportProfiles(params);
-
     if (!result) return;
 
-    // Trigger browser file download
-    const url      = URL.createObjectURL(result.blob);
-    const a        = document.createElement('a');
-    const date     = new Date().toISOString().slice(0, 10);
-    a.href         = url;
-    a.download     = `insighta-export-${date}.csv`;
+    const url  = URL.createObjectURL(result.blob);
+    const a    = document.createElement('a');
+    const date = new Date().toISOString().slice(0, 10);
+    a.href     = url;
+    a.download = `insighta-export-${date}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
     els.exportNote.textContent = `✓ Exported ${result.count} records`;
-    if (result.capped) {
-      els.exportNote.textContent += ' (capped at 10,000)';
-    }
+    if (result.capped) els.exportNote.textContent += ' (capped at 10,000)';
 
   } catch (err) {
     els.exportNote.textContent = '✗ Export failed: ' + err.message;
@@ -252,16 +233,15 @@ els.exportBtn.addEventListener('click', async () => {
   }
 });
 
-// ── Load user info into navbar ────────────────────────────────────────────────
-
+// Load user info into navbar
 (async () => {
   const result = await ProfileAPI.getMe();
   if (result?.data) {
-    els.navUsername.textContent    = result.data.username;
-    els.roleBadge.textContent      = result.data.role;
-    els.roleBadge.className        = `role-badge ${result.data.role}`;
+    els.navUsername.textContent = result.data.username;
+    els.roleBadge.textContent   = result.data.role;
+    els.roleBadge.className     = `role-badge ${result.data.role}`;
   }
 })();
 
-// ── Initial load ──────────────────────────────────────────────────────────────
+// Initial load
 loadProfiles();
